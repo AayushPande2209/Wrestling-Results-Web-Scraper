@@ -87,7 +87,7 @@ Deploy to Vercel, connect Supabase, manual scraper
     - Essential indexes only
     - _Requirements: 2_
 
-- [-] 6. Build Page 1: Wrestlers List
+- [x] 6. Build Page 1: Wrestlers List
   - [x] 6.1 Create wrestlers list page
     - Table of wrestlers with basic stats
     - Columns: Name, Weight Class, Wins, Losses, Win %
