@@ -1,290 +1,217 @@
 # Wrestling Analytics Scraper
 
-Python-based web scraper for extracting wrestling match data from DubStat and storing it in Supabase.
+A Playwright-based scraper for extracting wrestling match data from DubStat's free results database.
 
-## Quick Start
+## Overview
 
-### Prerequisites
+This scraper implements the **Gender → School → Wrestler → Results** loop to systematically collect all wrestling match data from Ohio high schools. It uses Playwright for browser automation and BeautifulSoup for HTML parsing.
 
-1. **Python 3.8+** installed on your system
-2. **Supabase project** set up with the wrestling analytics schema
-3. **Environment variables** configured (see Configuration section)
+## Features
 
-### Installation
+- 🎭 **Playwright automation** - Handles dynamic dropdowns and form interactions
+- 🔄 **Complete data loop** - Processes all genders, schools, and wrestlers
+- 🗄️ **Supabase integration** - Stores data in PostgreSQL database
+- 📊 **Dashboard trigger** - Can be started from the web dashboard
+- 📝 **Comprehensive logging** - Detailed progress tracking and error handling
+- 🛡️ **Data validation** - Cleans and validates extracted data
 
-1. **Clone the repository** (if not already done):
-   ```bash
-   git clone <your-repo-url>
-   cd wrestling-analytics-platform
-   ```
+## Quick Setup
 
-2. **Navigate to scraper directory**:
+1. **Install dependencies:**
    ```bash
    cd scraper
+   python setup.py
    ```
 
-3. **Install Python dependencies**:
+2. **Set environment variables:**
    ```bash
-   pip install -r requirements.txt
+   export SUPABASE_URL="your-supabase-project-url"
+   export SUPABASE_ANON_KEY="your-supabase-anon-key"
    ```
 
-### Configuration
-
-1. **Set up environment variables** by copying from the root `.env` file or creating a new one:
+3. **Run the scraper:**
    ```bash
-   cp ../.env .env
+   python run_scraper.py
    ```
 
-2. **Required environment variables**:
-   ```bash
-   # Supabase Configuration
-   SUPABASE_URL=https://your-project.supabase.co
-   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-   SUPABASE_ANON_KEY=your-anon-key
-   
-   # Scraper Configuration
-   SCRAPER_USER_AGENT=Mozilla/5.0 (compatible; WrestlingAnalytics/1.0)
-   SCRAPER_REQUEST_TIMEOUT=30
-   SCRAPER_MAX_RETRIES=3
-   SCRAPER_RETRY_DELAY=1
-   SCRAPER_BATCH_SIZE=50
-   ```
+## How It Works
 
-## Manual Scraper Usage
+### Scraping Process
 
-### Method 1: Using the Simple Scraper Script
+The scraper follows this systematic approach:
 
-The easiest way to scrape data is using the simple `scraper.py` script in the root directory:
+1. **Load DubStat database page** (`https://www.dubstat.com/database`)
+2. **Loop through genders** (Boys, Girls)
+3. **For each gender:**
+   - Get all available schools
+   - **For each school:**
+     - Get all wrestlers at that school
+     - **For each wrestler:**
+       - Select wrestler from dropdown
+       - Click "Get Results" button
+       - Parse the results table
+       - Extract match data
+       - Store in Supabase database
+
+### Data Extracted
+
+From each wrestler's results table:
+- Tournament name
+- Opponent name and school
+- Match result (W/L)
+- Score
+- Match type (Pin, Decision, Tech Fall, etc.)
+- Round information
+- Weight class
+
+### Database Storage
+
+Data is stored in three main tables:
+- `wrestlers` - Wrestler information
+- `tournaments` - Tournament details
+- `matches` - Individual match results
+
+## Usage
+
+### Command Line
 
 ```bash
-# From the root directory
-python scraper.py
+# Run complete scraping process
+python run_scraper.py
+
+# The scraper will:
+# 1. Loop through all genders
+# 2. Process all schools for each gender
+# 3. Scrape all wrestlers for each school
+# 4. Store results in Supabase
 ```
 
-This script will:
-- Scrape a hardcoded DubStat tournament URL
-- Extract match data
-- Print results to console
+### Dashboard Integration
 
-**To customize the URL**, edit `scraper.py` and change the URL in the script.
+The scraper can also be triggered from the web dashboard:
 
-### Method 2: Using the Advanced Scraper Module
+1. Open the dashboard in your browser
+2. Click the "Run Scraper" button on the home page
+3. The scraper runs in the background
+4. Dashboard shows progress and completion status
 
-For more control, use the advanced scraper in the `scraper/src/` directory:
+## Configuration
+
+### Environment Variables
+
+Required environment variables:
 
 ```bash
-# From the scraper directory
-cd scraper
-python -c "
-from src.dubstat_scraper import DubStatScraper
-from src.supabase_client import SupabaseClient
-from src.data_validator import DataValidator
-
-# Initialize components
-scraper = DubStatScraper()
-db_client = SupabaseClient()
-validator = DataValidator()
-
-# Scrape tournament data
-url = 'https://www.dubstat.com/tournament/your-tournament-id'
-matches = scraper.scrape_tournament_page(url)
-
-# Validate and store data
-for match in matches:
-    if validator.validate_match_data(match):
-        db_client.insert_match(match)
-
-print(f'Successfully processed {len(matches)} matches')
-"
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
 ```
 
-### Method 3: Interactive Python Session
+### Scraper Settings
 
-For testing and exploration:
+You can modify these settings in `src/playwright_scraper.py`:
 
-```bash
-cd scraper
-python
-```
+- `headless=True` - Run browser in headless mode (set to False for debugging)
+- School limit - Currently limited to 50 schools for testing (remove in production)
+- Timeouts and wait periods
 
-```python
-# In Python interactive session
-from src.dubstat_scraper import DubStatScraper
+## Logging
 
-# Create scraper instance
-scraper = DubStatScraper()
-
-# Scrape a tournament
-url = "https://www.dubstat.com/tournament/12345"
-matches = scraper.scrape_tournament_page(url)
-
-# Inspect results
-print(f"Found {len(matches)} matches")
-for match in matches[:3]:  # Show first 3 matches
-    print(f"{match.wrestler1.name} vs {match.wrestler2.name}: {match.wrestler1_score}-{match.wrestler2_score}")
-```
-
-## Finding Tournament URLs
-
-To find DubStat tournament URLs to scrape:
-
-1. **Visit DubStat.com**
-2. **Navigate to tournaments** or search for your team/school
-3. **Copy the tournament page URL** (usually in format: `https://www.dubstat.com/tournament/[ID]`)
-4. **Use this URL** in any of the scraping methods above
-
-Example URLs:
-- `https://www.dubstat.com/tournament/12345`
-- `https://www.dubstat.com/results/team/67890`
-
-## Data Storage
-
-The scraper automatically stores data in your Supabase database with these tables:
-
-- **wrestlers**: Individual wrestler information
-- **tournaments**: Tournament metadata
-- **matches**: Match results and scores
-
-Data is validated before insertion to ensure quality and prevent duplicates.
+The scraper creates detailed log files:
+- Console output shows progress
+- Log files saved as `scraper_YYYYMMDD_HHMMSS.log`
+- Different log levels for debugging
 
 ## Troubleshooting
 
 ### Common Issues
 
-#### 1. Import Errors
-```
-ModuleNotFoundError: No module named 'src'
-```
-**Solution**: Make sure you're in the `scraper` directory and have installed dependencies:
-```bash
-cd scraper
-pip install -r requirements.txt
-```
+1. **"Playwright not found"**
+   ```bash
+   pip install playwright
+   playwright install chromium
+   ```
 
-#### 2. Supabase Connection Errors
-```
-supabase.exceptions.APIError: Invalid API key
-```
-**Solution**: Check your environment variables:
-- Verify `SUPABASE_URL` is correct
-- Ensure `SUPABASE_SERVICE_ROLE_KEY` has proper permissions
-- Check that your Supabase project is active
+2. **"Supabase connection failed"**
+   - Check your environment variables
+   - Verify Supabase URL and key are correct
+   - Test connection with: `python -c "from src.supabase_client import SupabaseClient; SupabaseClient().test_connection()"`
 
-#### 3. No Data Found
-```
-Scraped 0 matches
-```
-**Solution**: 
-- Verify the tournament URL is correct and accessible
-- Check that the tournament page has match results
-- Try a different tournament URL
-- Check the scraper logs for parsing errors
+3. **"No data found"**
+   - Check if DubStat website structure has changed
+   - Run with `headless=False` to see browser interactions
+   - Check log files for detailed error messages
 
-#### 4. Network Timeouts
-```
-requests.exceptions.Timeout
-```
-**Solution**:
-- Check your internet connection
-- Increase `SCRAPER_REQUEST_TIMEOUT` in environment variables
-- Try again later (DubStat might be temporarily unavailable)
+4. **Scraper stops unexpectedly**
+   - Network timeouts are common - scraper will resume from where it left off
+   - Check log files for specific error details
+   - Restart the scraper to continue
 
 ### Debug Mode
 
-Enable verbose logging for troubleshooting:
+To debug scraper issues:
+
+1. Set `headless=False` in `PlaywrightScraper()`
+2. Add breakpoints or print statements
+3. Check browser developer tools for page structure changes
+
+## Performance
+
+- **Expected runtime:** 4-8 hours for complete Ohio database
+- **Data volume:** ~10,000+ wrestlers, ~100,000+ matches
+- **Memory usage:** ~100-200MB during operation
+- **Network:** Respectful delays between requests
+
+## API Integration
+
+The scraper can be triggered via HTTP API:
 
 ```bash
-export LOG_LEVEL=DEBUG
-python scraper.py
+# Start scraper
+curl -X POST http://localhost:3000/api/run-scraper
+
+# Response
+{
+  "success": true,
+  "message": "Scraper started successfully",
+  "pid": 12345,
+  "startTime": "2024-01-15T10:30:00Z"
+}
 ```
 
-This will show detailed information about:
-- HTTP requests and responses
-- HTML parsing steps
-- Data validation results
-- Database insertion attempts
+## Development
 
-### Testing the Scraper
+### Project Structure
 
-Test with a known working tournament:
-
-```python
-from src.dubstat_scraper import DubStatScraper
-
-scraper = DubStatScraper()
-# Use a tournament you know has data
-test_url = "https://www.dubstat.com/tournament/test-tournament"
-matches = scraper.scrape_tournament_page(test_url)
-
-if matches:
-    print("✅ Scraper is working correctly")
-    print(f"Found {len(matches)} matches")
-else:
-    print("❌ No matches found - check URL or page structure")
+```
+scraper/
+├── src/
+│   ├── playwright_scraper.py    # Main scraper logic
+│   ├── supabase_client.py       # Database operations
+│   ├── data_validator.py        # Data validation
+│   └── models.py                # Data models
+├── run_scraper.py               # Entry point
+├── setup.py                     # Setup script
+├── requirements.txt             # Dependencies
+└── README.md                    # This file
 ```
 
-## Advanced Usage
+### Adding Features
 
-### Batch Processing Multiple Tournaments
+To extend the scraper:
 
-```python
-from src.dubstat_scraper import DubStatScraper
-from src.supabase_client import SupabaseClient
+1. **New data fields:** Update `models.py` and parsing logic
+2. **Different sites:** Create new scraper class following same interface
+3. **Enhanced validation:** Extend `DataValidator` class
+4. **Better error handling:** Add try/catch blocks and logging
 
-scraper = DubStatScraper()
-db_client = SupabaseClient()
+## Contributing
 
-tournament_urls = [
-    "https://www.dubstat.com/tournament/12345",
-    "https://www.dubstat.com/tournament/12346",
-    "https://www.dubstat.com/tournament/12347",
-]
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
-for url in tournament_urls:
-    try:
-        matches = scraper.scrape_tournament_page(url)
-        for match in matches:
-            db_client.insert_match(match)
-        print(f"✅ Processed {url}: {len(matches)} matches")
-    except Exception as e:
-        print(f"❌ Failed to process {url}: {e}")
-```
+## License
 
-### Custom Data Validation
-
-```python
-from src.data_validator import DataValidator
-
-validator = DataValidator()
-
-# Validate individual match
-if validator.validate_match_data(match):
-    print("✅ Match data is valid")
-else:
-    print("❌ Match data failed validation")
-
-# Get validation errors
-errors = validator.get_validation_errors(match)
-for error in errors:
-    print(f"Validation error: {error}")
-```
-
-## Structure
-- `src/` - Main source code
-  - `dubstat_scraper.py` - Main scraper class
-  - `supabase_client.py` - Database client
-  - `data_validator.py` - Data validation
-  - `models.py` - Data models
-- `config/` - Configuration files
-- `requirements.txt` - Python dependencies
-
-## Next Steps
-
-After successfully scraping data:
-
-1. **Verify data in Supabase** - Check your database tables
-2. **Test the dashboard** - Ensure scraped data appears in the web interface
-3. **Set up regular scraping** - Create a schedule for updating data
-4. **Monitor data quality** - Check for any parsing issues or missing data
-
-For dashboard usage, see the main project README and deployment guide.
+This project is for educational purposes. Respect DubStat's terms of service and rate limits.

@@ -1,104 +1,98 @@
 #!/usr/bin/env python3
 """
-Simple script to run the wrestling analytics scraper.
-Usage: python run_scraper.py [tournament_url]
+Playwright-based wrestling analytics scraper.
+Usage: python run_scraper.py
 """
 import sys
 import os
-from typing import Optional
+import logging
+from datetime import datetime
 
 # Add the src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 try:
-    from dubstat_scraper import DubStatScraper
-    from supabase_client import SupabaseClient
-    from data_validator import DataValidator
-    from models import MatchData
+    from playwright_scraper import PlaywrightScraper
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("Make sure you're in the scraper directory and have installed dependencies:")
     print("  cd scraper")
     print("  pip install -r requirements.txt")
+    print("  playwright install chromium")
     sys.exit(1)
 
 
+def setup_logging():
+    """Set up logging configuration."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(f'scraper_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+        ]
+    )
+
+
 def main():
-    """Main function to run the scraper."""
+    """Main function to run the Playwright scraper."""
     
-    # Get tournament URL from command line or use default
-    if len(sys.argv) > 1:
-        tournament_url = sys.argv[1]
-    else:
-        # Default test URL - replace with a real tournament URL
-        tournament_url = "https://www.dubstat.com/tournament/example"
-        print(f"No URL provided, using default: {tournament_url}")
-        print("Usage: python run_scraper.py <tournament_url>")
-        print()
+    print(f"🏆 Wrestling Analytics Scraper (Playwright)")
+    print(f"📅 Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("-" * 60)
     
-    print(f"🏆 Wrestling Analytics Scraper")
-    print(f"📄 Scraping: {tournament_url}")
-    print("-" * 50)
+    setup_logging()
+    logger = logging.getLogger(__name__)
     
     try:
-        # Initialize components
-        print("🔧 Initializing scraper components...")
-        scraper = DubStatScraper()
-        db_client = SupabaseClient()
-        validator = DataValidator()
+        # Initialize scraper
+        print("🔧 Initializing Playwright scraper...")
+        scraper = PlaywrightScraper(headless=True)  # Set to False for debugging
         
-        # Scrape tournament data
-        print("🕷️  Scraping tournament data...")
-        matches = scraper.scrape_tournament_page(tournament_url)
+        # Run complete scraping process
+        print("🕷️  Starting complete data scraping...")
+        print("This will loop through: Gender → School → Wrestler → Results")
+        print("⏰ This may take several hours to complete...")
+        print()
         
-        if not matches:
-            print("❌ No matches found. Check the URL or try a different tournament.")
-            return
+        stats = scraper.scrape_all_data()
         
-        print(f"✅ Found {len(matches)} matches")
+        # Print summary
+        print("-" * 60)
+        print("📊 SCRAPING SUMMARY:")
+        print(f"  🏫 Total schools processed: {stats['total_schools']}")
+        print(f"  🤼 Total wrestlers processed: {stats['total_wrestlers']}")
+        print(f"  🥊 Total matches found: {stats['total_matches']}")
+        print(f"  ✅ Successfully stored: {stats['successful_inserts']}")
+        print(f"  ❌ Errors encountered: {stats['errors']}")
         
-        # Validate and store data
-        print("🔍 Validating and storing data...")
-        successful_inserts = 0
-        validation_errors = 0
+        if stats['start_time'] and stats['end_time']:
+            duration = stats['end_time'] - stats['start_time']
+            print(f"  ⏱️  Total time: {duration}")
         
-        for i, match in enumerate(matches, 1):
-            try:
-                # Validate match data
-                if validator.validate_match_data(match):
-                    # Insert into database
-                    db_client.insert_match(match)
-                    successful_inserts += 1
-                    print(f"  ✅ Match {i}/{len(matches)}: {match.wrestler1.name} vs {match.wrestler2.name}")
-                else:
-                    validation_errors += 1
-                    print(f"  ❌ Match {i}/{len(matches)}: Validation failed")
-                    
-            except Exception as e:
-                print(f"  ❌ Match {i}/{len(matches)}: Error - {e}")
-                continue
+        success_rate = (stats['successful_inserts'] / max(stats['total_matches'], 1)) * 100
+        print(f"  📈 Success rate: {success_rate:.1f}%")
         
-        # Summary
-        print("-" * 50)
-        print(f"📊 Summary:")
-        print(f"  Total matches found: {len(matches)}")
-        print(f"  Successfully stored: {successful_inserts}")
-        print(f"  Validation errors: {validation_errors}")
-        print(f"  Other errors: {len(matches) - successful_inserts - validation_errors}")
-        
-        if successful_inserts > 0:
+        if stats['successful_inserts'] > 0:
+            print()
             print("✅ Scraping completed successfully!")
             print("🌐 Check your dashboard to see the new data.")
         else:
-            print("❌ No data was stored. Check the troubleshooting guide.")
+            print()
+            print("❌ No data was stored. Check the logs for details.")
             
+    except KeyboardInterrupt:
+        print("\n⏹️  Scraping interrupted by user")
+        logger.info("Scraping interrupted by user")
+        sys.exit(0)
     except Exception as e:
         print(f"❌ Scraper failed: {e}")
+        logger.error(f"Scraper failed: {e}", exc_info=True)
         print("\n🔧 Troubleshooting tips:")
         print("1. Check your internet connection")
-        print("2. Verify the tournament URL is correct")
-        print("3. Ensure Supabase environment variables are set")
-        print("4. Try running with DEBUG logging: export LOG_LEVEL=DEBUG")
+        print("2. Ensure Supabase environment variables are set")
+        print("3. Make sure Playwright is installed: playwright install chromium")
+        print("4. Check the log file for detailed error information")
         sys.exit(1)
 
 

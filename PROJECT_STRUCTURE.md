@@ -41,11 +41,12 @@ wrestling-analytics-platform/
 ├── shared/                        # Shared configuration and utilities
 │   ├── README.md                  # Shared components documentation
 │   ├── database/                  # Database schema and setup
-│   │   ├── schema.sql             # Main database schema
+│   │   ├── schema_mvp.sql         # MVP database schema
+│   │   ├── setup_mvp.sql          # MVP setup script
+│   │   ├── init_dev_data_mvp.sql  # MVP development sample data
+│   │   ├── README_MVP.md          # MVP database documentation
 │   │   ├── rls_policies.sql       # Row Level Security policies
-│   │   ├── realtime_config.sql    # Real-time subscriptions setup
-│   │   ├── setup.sql              # Complete setup script
-│   │   └── init_dev_data.sql      # Development sample data
+│   │   └── realtime_config.sql    # Real-time subscriptions setup
 │   └── config/                    # Environment configuration templates
 │       ├── .env.template          # Environment variables template
 │       ├── .env.development       # Development configuration
@@ -119,10 +120,10 @@ The system uses 5 main tables:
 ## Quick Start
 
 1. **Database Setup**: Run SQL scripts in Supabase in this order:
-   - `shared/database/schema.sql`
-   - `shared/database/rls_policies.sql`
-   - `shared/database/realtime_config.sql`
-   - `shared/database/init_dev_data.sql` (optional)
+   - `shared/database/schema_mvp.sql`
+   - `shared/database/rls_policies.sql` (optional for MVP)
+   - `shared/database/realtime_config.sql` (optional for MVP)
+   - `shared/database/init_dev_data_mvp.sql` (optional, for sample data)
 
 2. **Environment**: Update `.env` with your Supabase credentials
 

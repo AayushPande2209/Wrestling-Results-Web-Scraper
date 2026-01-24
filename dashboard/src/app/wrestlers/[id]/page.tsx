@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { calculateWrestlerStats, getWrestlerMatches } from '../../../utils/analytics'
+import { PerformanceChart } from '../../../components/PerformanceChart'
+import { WinLossChart } from '../../../components/WinLossChart'
+import { WinTypesChart } from '../../../components/WinTypesChart'
+import { calculateWrestlerStats, getWrestlerMatches, getPerformanceOverTime, getWinTypesData } from '../../../utils/analytics'
 import type { Match } from '../../../types/database'
 
 interface WrestlerProfilePageProps {
@@ -52,9 +55,11 @@ export default async function WrestlerProfilePage({ params }: WrestlerProfilePag
   const { id } = params
   
   // Get wrestler stats and matches
-  const [stats, matches] = await Promise.all([
+  const [stats, matches, performanceData, winTypesData] = await Promise.all([
     calculateWrestlerStats(id),
-    getWrestlerMatches(id)
+    getWrestlerMatches(id),
+    getPerformanceOverTime(id),
+    getWinTypesData(id)
   ])
 
   if (!stats) {
@@ -113,6 +118,30 @@ export default async function WrestlerProfilePage({ params }: WrestlerProfilePag
           <div className="text-sm text-gray-600">Total Matches</div>
         </div>
       </div>
+
+      {/* Charts Section */}
+      {stats.total_matches > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <PerformanceChart 
+            data={performanceData} 
+            title={`${stats.name} - Performance Over Time`}
+          />
+          <WinLossChart 
+            wins={stats.wins} 
+            losses={stats.losses}
+            title={`${stats.name} - Win/Loss Breakdown`}
+          />
+        </div>
+      )}
+
+      {stats.total_matches > 0 && (
+        <div className="mb-8">
+          <WinTypesChart 
+            data={winTypesData}
+            title={`${stats.name} - Win Types Distribution`}
+          />
+        </div>
+      )}
 
       {/* Match Type Breakdown */}
       <div className="card mb-8">

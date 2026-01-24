@@ -50,9 +50,10 @@ wrestling-analytics-platform/
 2. **Set up Supabase database**
    - Create a new Supabase project
    - Run the SQL scripts in `shared/database/` in order:
-     - `schema.sql` - Create tables and constraints
-     - `rls_policies.sql` - Set up Row Level Security
-     - `realtime_config.sql` - Configure real-time subscriptions
+     - `schema_mvp.sql` - Create tables and constraints
+     - `rls_policies.sql` - Set up Row Level Security (optional for MVP)
+     - `realtime_config.sql` - Configure real-time subscriptions (optional for MVP)
+     - `init_dev_data_mvp.sql` - Add sample data (optional)
 
 3. **Configure environment variables**
    ```bash
@@ -150,7 +151,7 @@ The platform uses five main tables:
 - **matches** - Match results and scores
 - **scraper_jobs** - Scraping job tracking
 
-See `shared/database/schema.sql` for complete schema definition.
+See `shared/database/schema_mvp.sql` for complete schema definition.
 
 ## Development
 

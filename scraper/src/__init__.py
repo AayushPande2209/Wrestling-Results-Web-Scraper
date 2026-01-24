@@ -1,7 +1,7 @@
 # Wrestling Analytics Scraper Package
 
 from .models import WrestlerData, MatchData, TournamentData, MatchType, ScrapingJobStatus
-from .dubstat_scraper import DubStatScraper
+from .playwright_scraper import PlaywrightScraper
 from .data_validator import DataValidator, ValidationError
 
 # Optional imports that require external dependencies
@@ -13,7 +13,7 @@ try:
         'TournamentData',
         'MatchType',
         'ScrapingJobStatus',
-        'DubStatScraper',
+        'PlaywrightScraper',
         'DataValidator',
         'ValidationError',
         'SupabaseClient',
@@ -27,7 +27,7 @@ except ImportError:
         'TournamentData',
         'MatchType',
         'ScrapingJobStatus',
-        'DubStatScraper',
+        'PlaywrightScraper',
         'DataValidator',
         'ValidationError'
     ]
