@@ -39,7 +39,7 @@ class DataValidator:
     
     def validate_wrestler_data(self, wrestler: WrestlerData) -> bool:
         """
-        Validate wrestler data against business rules.
+        Validate wrestler data against business rules - MVP simplified.
         
         Args:
             wrestler: WrestlerData object to validate
@@ -55,36 +55,11 @@ class DataValidator:
             errors.append(f"Invalid wrestler name: '{wrestler.name}'")
             is_valid = False
         
-        # Validate team
-        if not self._validate_team_name(wrestler.team):
-            errors.append(f"Invalid team name: '{wrestler.team}'")
-            is_valid = False
-        
         # Validate weight class if provided
         if wrestler.weight_class is not None:
             if not self._validate_weight_class(wrestler.weight_class):
                 errors.append(f"Invalid weight class: {wrestler.weight_class}")
                 is_valid = False
-        
-        # Validate grade if provided
-        if wrestler.grade is not None:
-            if not self._validate_grade(wrestler.grade):
-                errors.append(f"Invalid grade: {wrestler.grade}")
-                is_valid = False
-        
-        # Validate win/loss counts
-        if wrestler.wins < 0 or wrestler.losses < 0:
-            errors.append(f"Invalid win/loss record: {wrestler.wins}-{wrestler.losses}")
-            is_valid = False
-        
-        # Validate percentages
-        if not (0 <= wrestler.win_percentage <= 1):
-            errors.append(f"Invalid win percentage: {wrestler.win_percentage}")
-            is_valid = False
-        
-        if wrestler.avg_score < 0:
-            errors.append(f"Invalid average score: {wrestler.avg_score}")
-            is_valid = False
         
         if errors:
             self.validation_errors.extend(errors)
@@ -161,7 +136,7 @@ class DataValidator:
     
     def validate_tournament_data(self, tournament: TournamentData) -> bool:
         """
-        Validate tournament data against business rules.
+        Validate tournament data against business rules - MVP simplified.
         
         Args:
             tournament: TournamentData object to validate
@@ -188,12 +163,6 @@ class DataValidator:
                 errors.append(f"Invalid match data at index {i}")
                 is_valid = False
         
-        # Validate weight classes
-        for weight_class in tournament.weight_classes:
-            if not self._validate_weight_class(weight_class):
-                errors.append(f"Invalid weight class: {weight_class}")
-                is_valid = False
-        
         if errors:
             self.validation_errors.extend(errors)
             logger.warning(f"Tournament validation errors: {errors}")
@@ -202,7 +171,7 @@ class DataValidator:
     
     def clean_wrestler_data(self, wrestler: WrestlerData) -> WrestlerData:
         """
-        Clean and normalize wrestler data.
+        Clean and normalize wrestler data - MVP simplified.
         
         Args:
             wrestler: WrestlerData object to clean
@@ -212,14 +181,7 @@ class DataValidator:
         """
         cleaned_wrestler = WrestlerData(
             name=self._clean_wrestler_name(wrestler.name),
-            team=self._clean_team_name(wrestler.team),
-            weight_class=wrestler.weight_class,
-            grade=wrestler.grade,
-            wins=max(0, wrestler.wins),
-            losses=max(0, wrestler.losses),
-            win_percentage=max(0, min(1, wrestler.win_percentage)),
-            avg_score=max(0, wrestler.avg_score),
-            recent_form=wrestler.recent_form.copy()
+            weight_class=wrestler.weight_class
         )
         
         return cleaned_wrestler
@@ -251,7 +213,7 @@ class DataValidator:
     
     def clean_tournament_data(self, tournament: TournamentData) -> TournamentData:
         """
-        Clean and normalize tournament data.
+        Clean and normalize tournament data - MVP simplified.
         
         Args:
             tournament: TournamentData object to clean
@@ -262,11 +224,7 @@ class DataValidator:
         cleaned_tournament = TournamentData(
             name=self._clean_tournament_name(tournament.name),
             date=tournament.date,
-            location=self._clean_location(tournament.location) if tournament.location else None,
-            division=self._clean_division(tournament.division) if tournament.division else None,
-            matches=[self.clean_match_data(match) for match in tournament.matches],
-            participating_teams=[self._clean_team_name(team) for team in tournament.participating_teams],
-            weight_classes=[wc for wc in tournament.weight_classes if self._validate_weight_class(wc)]
+            matches=[self.clean_match_data(match) for match in tournament.matches]
         )
         
         return cleaned_tournament

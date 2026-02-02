@@ -21,9 +21,10 @@ This directory contains the simplified database schema for the Wrestling Analyti
 ## Files
 
 ### Schema Files
-- `schema_mvp.sql` - Simplified 3-table schema
+- `schema_mvp.sql` - Simplified 3-table schema (includes unique index to prevent duplicate matches)
 - `setup_mvp.sql` - MVP setup script for Supabase
 - `init_dev_data_mvp.sql` - Sample data for testing
+- `unique_matches_constraint.sql` - Add unique index on matches for existing DBs (run after clearing matches if you deployed before this was in schema_mvp.sql)
 
 ### Legacy Files (Full Schema)
 - `schema.sql` - Full schema with all tables

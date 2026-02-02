@@ -1,6 +1,6 @@
 # Wrestling Analytics Scraper Package
 
-from .models import WrestlerData, MatchData, TournamentData, MatchType, ScrapingJobStatus
+from .models import WrestlerData, MatchData, TournamentData, MatchType
 from .playwright_scraper import PlaywrightScraper
 from .data_validator import DataValidator, ValidationError
 
@@ -12,7 +12,6 @@ try:
         'MatchData', 
         'TournamentData',
         'MatchType',
-        'ScrapingJobStatus',
         'PlaywrightScraper',
         'DataValidator',
         'ValidationError',
@@ -26,7 +25,6 @@ except ImportError:
         'MatchData', 
         'TournamentData',
         'MatchType',
-        'ScrapingJobStatus',
         'PlaywrightScraper',
         'DataValidator',
         'ValidationError'

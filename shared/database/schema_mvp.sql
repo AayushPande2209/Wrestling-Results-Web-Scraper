@@ -51,6 +51,14 @@ CREATE INDEX idx_matches_wrestler2_id ON matches(wrestler2_id);
 CREATE INDEX idx_matches_tournament_id ON matches(tournament_id);
 CREATE INDEX idx_tournaments_date ON tournaments(date);
 
+-- Prevent duplicate matches: same tournament, round, and wrestler pair (order-independent)
+CREATE UNIQUE INDEX idx_matches_unique_match ON matches (
+    tournament_id,
+    COALESCE(round, ''),
+    LEAST(wrestler1_id, wrestler2_id),
+    GREATEST(wrestler1_id, wrestler2_id)
+);
+
 -- Note: No teams table, no scraper_jobs table, no complex triggers
 -- Teams can be computed from wrestler data if needed later
 -- Scraper jobs can be tracked in logs, not database

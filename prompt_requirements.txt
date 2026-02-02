@@ -1,0 +1,151 @@
+You are a senior backend engineer helping me build a Python automation project.
+
+GOAL:
+Build a Python pipeline that scrapes wrestling tournament and match data from **DubStat result pages** and inserts the results into Supabase.
+
+TECH STACK (DO NOT CHANGE):
+
+* Python
+* requests
+* BeautifulSoup
+* Supabase Python client (tables are already made)
+* python-dotenv
+
+IMPORTANT CONSTRAINTS:
+
+* DO NOT change the database schema
+* DO NOT add new tables
+* DO NOT invent new columns
+* DO NOT refactor logic unless explicitly asked
+* DO NOT scrape private APIs (HTML scraping only)
+* Keep code readable, minimal, and modular
+* No frontend code
+
+DATABASE SCHEMA (THIS IS FINAL):
+
+CREATE TABLE wrestlers (
+id uuid primary key default gen_random_uuid(),
+name text not null,
+team text,
+weight_class text
+);
+
+CREATE TABLE tournaments (
+id uuid primary key default gen_random_uuid(),
+name text,
+date date
+);
+
+CREATE TABLE matches (
+id uuid primary key default gen_random_uuid(),
+wrestler_id uuid references wrestlers(id),
+opponent text,
+tournament_id uuid references tournaments(id),
+result text,        -- 'W' or 'L'
+win_type text,      -- optional for now
+score text,         -- optional for now
+round text,         -- optional for now
+created_at timestamp default now()
+);
+
+ARCHITECTURE REQUIREMENTS:
+
+1. Scraping (DubStat)
+
+* Use `requests` to fetch DubStat tournament or results pages
+* Parse HTML using BeautifulSoup
+* Locate match rows from DubStat tables / result sections
+* Each match contains two wrestlers
+* Extract:
+
+  * wrestler name
+  * team (if available)
+  * score (if available)
+  * round (if available)
+* Determine winner and loser from score or ordering
+* Skip byes or incomplete rows
+
+2. Data Model
+
+* Each REAL match must produce TWO rows in the matches table
+* One row per wrestler (per-wrestler perspective)
+* Example:
+
+  * Winner row: result = 'W'
+  * Loser row: result = 'L'
+* opponent column should store opponent name as text
+
+3. Supabase Logic
+
+* Use SERVICE ROLE KEY from environment variables
+* Implement helper functions:
+
+  * get_or_create_wrestler(name, team)
+  * get_or_create_tournament(name, date)
+* Prevent duplicate wrestler creation
+* Insert matches using the schema exactly as defined
+
+4. Code Organization
+
+Create these files:
+
+* supabase_client.py
+
+  * loads env vars
+  * initializes Supabase client
+  * exposes `supabase`
+
+* scrape_bracket.py
+
+  * function: scrape_matches(url)
+  * returns list of match pairs
+
+    [
+    [
+    {"name": "...", "team": "...", "result": "W", "score": "...", "round": "..."},
+    {"name": "...", "team": "...", "result": "L", "score": "...", "round": "..."}
+    ]
+    ]
+
+* insert_matches.py
+
+  * contains Supabase helper functions
+  * inserts two rows per match
+
+* main.py
+
+  * accepts:
+
+    * tournament name
+    * tournament date
+    * dubstat URL
+  * runs full pipeline:
+    scrape → normalize → insert
+
+5. Environment
+
+* Use python-dotenv
+* Secrets must come from .env
+* Do NOT hardcode credentials
+
+6. Error Handling
+
+* Handle missing fields gracefully
+* Skip incomplete matches (byes)
+* Add minimal print logging (not verbose)
+
+OUTPUT EXPECTATION:
+
+* Code must run without modification once env vars are set
+* Re-running script may insert duplicates (deduplication will be added later)
+* Focus on correctness over optimization
+
+DO NOT:
+
+* Change schema
+* Add auth
+* Add frontend
+* Over-engineer
+* Invent data fields
+
+Write the full implementation now.

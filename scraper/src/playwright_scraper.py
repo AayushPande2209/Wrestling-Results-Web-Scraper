@@ -23,7 +23,7 @@ class PlaywrightScraper:
     def __init__(self, headless: bool = True):
         """Initialize the scraper."""
         self.headless = headless
-        self.base_url = "https://www.dubstat.com/database"
+        self.base_url = "https://dubstat.com/dubstat-home/ohio-high-school-wrestling/dubstat-database/"
         self.db_client = SupabaseClient()
         self.validator = DataValidator()
         
@@ -117,9 +117,20 @@ class PlaywrightScraper:
     def _load_page(self, page: Page) -> None:
         """Load the DubStat database page."""
         logger.info(f"Loading page: {self.base_url}")
-        page.goto(self.base_url)
-        page.wait_for_load_state('networkidle')
-        time.sleep(2)  # Additional wait for dynamic content
+        try:
+            page.goto(self.base_url, timeout=60000)  # Increase timeout to 60 seconds
+            page.wait_for_load_state('domcontentloaded')  # Wait for DOM instead of networkidle
+            time.sleep(3)  # Additional wait for dynamic content
+            logger.info("Page loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load page: {e}")
+            # Try to get page title to see if we loaded something
+            try:
+                title = page.title()
+                logger.info(f"Page title: {title}")
+            except:
+                pass
+            raise
         
     def _get_genders(self, page: Page) -> List[str]:
         """Get available gender options."""
@@ -210,7 +221,15 @@ class PlaywrightScraper:
                         ''')
                         if options:
                             logger.debug(f"Found {len(options)} schools")
-                            return options[:50]  # Limit for testing - remove in production
+                            # Filter to only include Olentangy Liberty
+                            liberty_schools = [school for school in options if 'olentangy liberty' in school.lower()]
+                            if liberty_schools:
+                                logger.info(f"Found Olentangy Liberty school(s): {liberty_schools}")
+                                return liberty_schools
+                            else:
+                                logger.warning("Olentangy Liberty not found in school list")
+                                logger.debug(f"Available schools: {options[:10]}...")  # Show first 10 for debugging
+                                return []
                 except:
                     continue
             
@@ -291,38 +310,89 @@ class PlaywrightScraper:
                 'select[name*="wrestler"]',
                 'select[id*="wrestler"]',
                 '#wrestler',
-                '.wrestler-select'
+                '.wrestler-select',
+                'select[name*="athlete"]',
+                'select[id*="athlete"]'
             ]
             
+            wrestler_selected = False
             for selector in wrestler_selectors:
                 try:
                     element = page.query_selector(selector)
                     if element:
                         page.select_option(selector, wrestler)
                         page.wait_for_timeout(1000)
+                        wrestler_selected = True
+                        logger.debug(f"Selected wrestler {wrestler} using selector {selector}")
                         break
-                except:
+                except Exception as e:
+                    logger.debug(f"Failed to select wrestler with selector {selector}: {e}")
                     continue
             
-            # Click "Get Results" button
+            if not wrestler_selected:
+                logger.warning(f"Could not select wrestler {wrestler}")
+                return []
+            
+            # Click "Get Results" button with improved selectors and debugging
             result_button_selectors = [
-                'input[type="submit"][value*="Results"]',
+                '#get-results',  # Most specific - the ID we found in debug
+                'button:text("Get Results")',  # Playwright text selector
+                'button >> text="Get Results"',  # Alternative text selector
                 'button:has-text("Get Results")',
+                'input[type="submit"][value*="Results"]',
+                'input[type="submit"][value*="Get Results"]',
                 'input[value*="Get Results"]',
+                'button[value*="Get Results"]',
                 '.get-results',
-                '#get-results'
+                'input[type="submit"]',  # Generic submit button
+                'button[type="submit"]'  # Generic submit button
             ]
             
+            button_clicked = False
             for selector in result_button_selectors:
                 try:
                     element = page.query_selector(selector)
                     if element:
-                        page.click(selector)
-                        page.wait_for_load_state('networkidle')
-                        time.sleep(2)  # Wait for results to load
-                        break
-                except:
+                        # Check if button is visible and enabled
+                        is_visible = page.is_visible(selector)
+                        is_enabled = page.is_enabled(selector)
+                        
+                        logger.debug(f"Found button with selector {selector}: visible={is_visible}, enabled={is_enabled}")
+                        
+                        if is_visible and is_enabled:
+                            logger.debug(f"Clicking Get Results button with selector: {selector}")
+                            page.click(selector)
+                            page.wait_for_load_state('domcontentloaded')
+                            time.sleep(3)  # Wait for results to load
+                            button_clicked = True
+                            logger.debug(f"Successfully clicked button with selector: {selector}")
+                            break
+                        else:
+                            logger.debug(f"Button found but not clickable: visible={is_visible}, enabled={is_enabled}")
+                except Exception as e:
+                    logger.debug(f"Failed to click button with selector {selector}: {e}")
                     continue
+            
+            if not button_clicked:
+                logger.warning(f"Could not find or click Get Results button for {wrestler}")
+                # Try to get all buttons on the page for debugging
+                try:
+                    buttons = page.evaluate('''
+                        Array.from(document.querySelectorAll('input[type="submit"], button')).map(btn => ({
+                            tag: btn.tagName,
+                            type: btn.type,
+                            value: btn.value,
+                            text: btn.textContent,
+                            id: btn.id,
+                            class: btn.className,
+                            visible: btn.offsetParent !== null,
+                            enabled: !btn.disabled
+                        }))
+                    ''')
+                    logger.debug(f"Available buttons: {buttons}")
+                except:
+                    pass
+                return []
             
             # Get the results table HTML
             html_content = page.content()
@@ -395,37 +465,79 @@ class PlaywrightScraper:
         return sum(1 for indicator in indicators if indicator in text) >= 3
     
     def _parse_match_row(self, row, wrestler_name: str, school: str) -> Optional[MatchData]:
-        """Parse a single match row from the results table."""
+        """Parse a single match row from the results table.
+        
+        Table structure (fixed columns):
+        Column 0: Event Date
+        Column 1: Event (Tournament name)
+        Column 2: Round
+        Column 3: Weight
+        Column 4: W/L (Win/Loss)
+        Column 5: Result (e.g., "D (3-0)", "F (5:32)", "TF (22-4)")
+        Column 6: Opponent
+        Column 7: Opponent School
+        """
         try:
             cells = row.find_all(['td', 'th'])
-            if len(cells) < 4:  # Need at least tournament, opponent, result, score
+            if len(cells) < 8:  # Need all 8 columns
+                logger.debug(f"Row has only {len(cells)} cells, expected 8")
                 return None
             
-            # Extract data from cells (order may vary by site)
+            # Extract data from cells using fixed column positions
             cell_texts = [cell.get_text().strip() for cell in cells]
             
-            # Try to identify columns by content patterns
-            tournament_name = self._extract_tournament_from_cells(cell_texts)
-            opponent_info = self._extract_opponent_from_cells(cell_texts)
-            result_info = self._extract_result_from_cells(cell_texts)
-            score_info = self._extract_score_from_cells(cell_texts)
+            # Column 0: Event Date (optional, not used in MVP)
+            event_date = cell_texts[0] if len(cell_texts) > 0 else None
             
-            if not all([tournament_name, opponent_info, result_info]):
+            # Column 1: Event (Tournament name)
+            tournament_name = cell_texts[1] if len(cell_texts) > 1 else None
+            if not tournament_name:
                 return None
             
+            # Column 2: Round
+            round_info = cell_texts[2] if len(cell_texts) > 2 else "Unknown"
+            
+            # Column 3: Weight (not used in MVP)
+            # weight = cell_texts[3] if len(cell_texts) > 3 else None
+            
+            # Column 4: W/L (Win/Loss)
+            win_loss = cell_texts[4] if len(cell_texts) > 4 else "L"
+            is_win = win_loss.upper() in ['W', 'WIN', 'WON']
+            
+            # Column 5: Result (e.g., "D (3-0)", "F (5:32)", "TF (22-4)")
+            result_str = cell_texts[5] if len(cell_texts) > 5 else ""
+            match_type, scores, match_time = self._parse_result_column(result_str)
+            
+            # Column 6: Opponent name
+            opponent_name = cell_texts[6] if len(cell_texts) > 6 else None
+            if not opponent_name:
+                return None
+            
+            # Column 7: Opponent School (not used in MVP)
+            # opponent_school = cell_texts[7] if len(cell_texts) > 7 else None
+            
             # Create wrestler objects
-            wrestler1 = WrestlerData(name=wrestler_name, team=school)
-            wrestler2 = WrestlerData(name=opponent_info['name'], team=opponent_info.get('team', 'Unknown'))
+            wrestler1 = WrestlerData(name=wrestler_name)
+            wrestler2 = WrestlerData(name=opponent_name)
             
             # Determine winner and scores
-            if result_info['result'].lower() in ['w', 'win', 'won']:
+            if is_win:
                 winner = wrestler1
-                wrestler1_score = score_info.get('winner_score', 0)
-                wrestler2_score = score_info.get('loser_score', 0)
+                wrestler1_score = scores.get('winner_score', 0)
+                wrestler2_score = scores.get('loser_score', 0)
             else:
                 winner = wrestler2
-                wrestler1_score = score_info.get('loser_score', 0)
-                wrestler2_score = score_info.get('winner_score', 0)
+                wrestler1_score = scores.get('loser_score', 0)
+                wrestler2_score = scores.get('winner_score', 0)
+            
+            # Parse date if available
+            match_date = None
+            if event_date:
+                try:
+                    from datetime import datetime
+                    match_date = datetime.strptime(event_date, '%Y-%m-%d')
+                except:
+                    pass
             
             # Create match data
             match_data = MatchData(
@@ -435,104 +547,99 @@ class PlaywrightScraper:
                 winner=winner,
                 wrestler1_score=wrestler1_score,
                 wrestler2_score=wrestler2_score,
-                match_type=self._parse_match_type(result_info.get('type', '')),
-                round=result_info.get('round', 'Unknown'),
-                date=None  # Will be extracted if available
+                match_type=match_type,
+                round=round_info,
+                match_time=match_time,
+                date=match_date
             )
             
             return match_data
             
         except Exception as e:
             logger.debug(f"Error parsing match row: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
             return None
     
-    def _extract_tournament_from_cells(self, cells: List[str]) -> str:
-        """Extract tournament name from table cells."""
-        for cell in cells:
-            # Tournament names often contain words like "tournament", "invitational", "classic"
-            if any(word in cell.lower() for word in ['tournament', 'invitational', 'classic', 'dual', 'meet']):
-                return cell
+    def _parse_result_column(self, result_str: str) -> tuple:
+        """Parse the Result column which contains match type, score, and optionally match time.
         
-        # Fallback: first non-empty cell that's not obviously something else
-        for cell in cells:
-            if cell and not any(pattern in cell.lower() for pattern in ['vs', 'w-', 'l-', 'pin', 'dec']):
-                return cell
+        Formats:
+        - "D (3-0)" = Decision with score 3-0
+        - "F (5:32)" = Fall/Pin at 5:32 (no score, just time)
+        - "TF (22-4)" = Technical Fall with score 22-4
+        - "MD (8-0)" = Major Decision with score 8-0
+        - "FF" = Forfeit
+        - "DQ" = Disqualification
         
-        return "Unknown Tournament"
-    
-    def _extract_opponent_from_cells(self, cells: List[str]) -> Dict[str, str]:
-        """Extract opponent information from table cells."""
-        for cell in cells:
-            if 'vs' in cell.lower() or ' v ' in cell.lower():
-                # Parse "vs Opponent Name (Team)" format
-                parts = cell.replace('vs', '').replace('v', '').strip()
-                if '(' in parts and ')' in parts:
-                    name = parts.split('(')[0].strip()
-                    team = parts.split('(')[1].split(')')[0].strip()
-                    return {'name': name, 'team': team}
-                else:
-                    return {'name': parts, 'team': 'Unknown'}
-        
-        # Look for names (capitalized words)
-        for cell in cells:
-            if cell and cell[0].isupper() and ' ' in cell and len(cell.split()) >= 2:
-                return {'name': cell, 'team': 'Unknown'}
-        
-        return {'name': 'Unknown Opponent', 'team': 'Unknown'}
-    
-    def _extract_result_from_cells(self, cells: List[str]) -> Dict[str, str]:
-        """Extract match result information from table cells."""
-        result_info = {'result': 'L', 'type': '', 'round': ''}
-        
-        for cell in cells:
-            cell_lower = cell.lower()
-            
-            # Check for win/loss
-            if cell_lower in ['w', 'win', 'won']:
-                result_info['result'] = 'W'
-            elif cell_lower in ['l', 'loss', 'lost']:
-                result_info['result'] = 'L'
-            
-            # Check for match type
-            if 'pin' in cell_lower or 'fall' in cell_lower:
-                result_info['type'] = 'pin'
-            elif 'dec' in cell_lower:
-                result_info['type'] = 'decision'
-            elif 'md' in cell_lower or 'major' in cell_lower:
-                result_info['type'] = 'major_decision'
-            elif 'tf' in cell_lower or 'tech' in cell_lower:
-                result_info['type'] = 'tech_fall'
-            
-            # Check for round info
-            if 'final' in cell_lower:
-                result_info['round'] = 'Final'
-            elif 'semi' in cell_lower:
-                result_info['round'] = 'Semifinal'
-            elif 'quarter' in cell_lower:
-                result_info['round'] = 'Quarterfinal'
-        
-        return result_info
-    
-    def _extract_score_from_cells(self, cells: List[str]) -> Dict[str, int]:
-        """Extract score information from table cells."""
+        Returns:
+            Tuple of (MatchType, scores_dict, match_time) where scores_dict has 'winner_score'
+            and 'loser_score', and match_time is the time string for pins (e.g. "5:32") or None.
+        """
+        import re
         scores = {'winner_score': 0, 'loser_score': 0}
+        match_time = None
+        result_upper = result_str.upper().strip()
         
-        for cell in cells:
-            # Look for score patterns like "15-3", "21-6", etc.
-            import re
-            score_match = re.search(r'(\d+)-(\d+)', cell)
+        # Default to decision
+        match_type = MatchType.DECISION
+        
+        # Check for forfeit
+        if 'FF' in result_upper or 'FORFEIT' in result_upper:
+            match_type = MatchType.FORFEIT
+            return match_type, scores, match_time
+        
+        # Check for disqualification
+        if 'DQ' in result_upper or 'DISQUAL' in result_upper:
+            match_type = MatchType.DISQUALIFICATION
+            return match_type, scores, match_time
+        
+        # Check for fall/pin (format: "F (5:32)" or "F (1:54)")
+        if result_upper.startswith('F ') or result_upper.startswith('FALL'):
+            match_type = MatchType.PIN
+            # Extract time from parentheses (e.g. "5:32" or "1:54.2")
+            time_match = re.search(r'\((\d+:\d+(?:\.\d+)?)\)', result_str)
+            if time_match:
+                match_time = time_match.group(1)
+            return match_type, scores, match_time
+        
+        # Check for technical fall (format: "TF (22-4)")
+        if result_upper.startswith('TF '):
+            match_type = MatchType.TECH_FALL
+            # Extract score from parentheses
+            score_match = re.search(r'\((\d+)-(\d+)\)', result_str)
             if score_match:
-                score1, score2 = int(score_match.group(1)), int(score_match.group(2))
-                # Assume higher score is winner
-                if score1 > score2:
-                    scores['winner_score'] = score1
-                    scores['loser_score'] = score2
-                else:
-                    scores['winner_score'] = score2
-                    scores['loser_score'] = score1
-                break
+                scores['winner_score'] = int(score_match.group(1))
+                scores['loser_score'] = int(score_match.group(2))
+            return match_type, scores, match_time
         
-        return scores
+        # Check for major decision (format: "MD (8-0)")
+        if result_upper.startswith('MD '):
+            match_type = MatchType.MAJOR_DECISION
+            # Extract score from parentheses
+            score_match = re.search(r'\((\d+)-(\d+)\)', result_str)
+            if score_match:
+                scores['winner_score'] = int(score_match.group(1))
+                scores['loser_score'] = int(score_match.group(2))
+            return match_type, scores, match_time
+        
+        # Check for decision (format: "D (3-0)")
+        if result_upper.startswith('D '):
+            match_type = MatchType.DECISION
+            # Extract score from parentheses
+            score_match = re.search(r'\((\d+)-(\d+)\)', result_str)
+            if score_match:
+                scores['winner_score'] = int(score_match.group(1))
+                scores['loser_score'] = int(score_match.group(2))
+            return match_type, scores, match_time
+        
+        # Fallback: try to extract any score pattern
+        score_match = re.search(r'\((\d+)-(\d+)\)', result_str)
+        if score_match:
+            scores['winner_score'] = int(score_match.group(1))
+            scores['loser_score'] = int(score_match.group(2))
+        
+        return match_type, scores, match_time
     
     def _parse_match_type(self, type_str: str) -> MatchType:
         """Parse match type from string."""

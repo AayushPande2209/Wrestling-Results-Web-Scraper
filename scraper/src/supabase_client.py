@@ -31,10 +31,12 @@ class SupabaseClient:
         
         Args:
             url: Supabase project URL (defaults to SUPABASE_URL env var)
-            key: Supabase anon key (defaults to SUPABASE_ANON_KEY env var)
+            key: Supabase key (defaults to SUPABASE_SERVICE_ROLE_KEY for writes, 
+                falls back to SUPABASE_ANON_KEY)
         """
         self.url = url or os.getenv('SUPABASE_URL')
-        self.key = key or os.getenv('SUPABASE_ANON_KEY')
+        # Prefer service_role key for write operations, fall back to anon key
+        self.key = key or os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_ANON_KEY')
         
         if not self.url or not self.key:
             raise SupabaseClientError("Supabase URL and key are required")
@@ -105,9 +107,9 @@ class SupabaseClient:
                 wrestler2_id = self._ensure_wrestler_exists(match.wrestler2)
                 tournament_id = self._ensure_tournament_exists(match)
                 
-                # Check for duplicate match
+                # Check for duplicate match (same tournament, round, wrestler pair)
                 if self._is_duplicate_match(match, wrestler1_id, wrestler2_id, tournament_id):
-                    logger.debug(f"Skipping duplicate match: {match.wrestler1.name} vs {match.wrestler2.name}")
+                    logger.info(f"Skipping duplicate match: {match.wrestler1.name} vs {match.wrestler2.name} ({match.tournament_name}, {match.round})")
                     continue
                 
                 # Insert match
@@ -125,10 +127,17 @@ class SupabaseClient:
                     'created_at': datetime.now().isoformat()
                 }
                 
-                result = self.client.table('matches').insert(match_data).execute()
-                if result.data:
-                    inserted_count += 1
-                    logger.debug(f"Inserted match: {match.wrestler1.name} vs {match.wrestler2.name}")
+                try:
+                    result = self.client.table('matches').insert(match_data).execute()
+                    if result.data:
+                        inserted_count += 1
+                        logger.debug(f"Inserted match: {match.wrestler1.name} vs {match.wrestler2.name}")
+                except Exception as insert_err:
+                    # Treat unique constraint violation (23505) as duplicate skip
+                    if self._is_unique_violation(insert_err):
+                        logger.info(f"Skipping duplicate match (DB constraint): {match.wrestler1.name} vs {match.wrestler2.name} ({match.tournament_name}, {match.round})")
+                    else:
+                        logger.error(f"Failed to insert match {match.wrestler1.name} vs {match.wrestler2.name}: {insert_err}")
                 
             except Exception as e:
                 logger.error(f"Failed to insert individual match: {e}")
@@ -194,6 +203,16 @@ class SupabaseClient:
             logger.error(f"Failed to ensure tournament exists: {e}")
             raise
     
+    def _is_unique_violation(self, exc: Exception) -> bool:
+        """Return True if the exception is a PostgreSQL unique constraint violation (23505)."""
+        msg = str(exc).lower()
+        if '23505' in msg or 'unique constraint' in msg or 'duplicate key' in msg:
+            return True
+        # Supabase/PostgREST may nest the error
+        if hasattr(exc, 'message') and exc.message:
+            return '23505' in str(exc.message) or 'unique' in str(exc.message).lower()
+        return False
+
     def _is_duplicate_match(self, match: MatchData, wrestler1_id: str, wrestler2_id: str, tournament_id: str) -> bool:
         """Check if match already exists in database."""
         try:

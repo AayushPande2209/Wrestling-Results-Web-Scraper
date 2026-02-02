@@ -7,12 +7,16 @@ import sys
 import os
 import logging
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # Add the src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 try:
-    from playwright_scraper import PlaywrightScraper
+    from src.playwright_scraper import PlaywrightScraper
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("Make sure you're in the scraper directory and have installed dependencies:")
