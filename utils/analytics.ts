@@ -3,7 +3,7 @@
  * Simple stats only: Wins, Losses, Win %, Match type breakdown
  */
 
-import { supabase } from './supabase';
+import { supabase, isSupabaseConfigured } from './supabase';
 import type { Wrestler, Match, MatchType, Tournament } from '../types/database';
 
 // Simplified wrestler statistics for MVP
@@ -27,9 +27,7 @@ export interface WrestlerStats {
  */
 export async function calculateWrestlerStats(wrestlerId: string): Promise<WrestlerStats | null> {
   try {
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    if (supabaseUrl.includes('placeholder') || !supabaseUrl) {
+    if (!isSupabaseConfigured) {
       console.warn('Supabase not configured, returning null');
       return null;
     }
@@ -138,9 +136,7 @@ export async function calculateWrestlerStats(wrestlerId: string): Promise<Wrestl
  */
 export async function getAllWrestlersWithStats(): Promise<WrestlerStats[]> {
   try {
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    if (supabaseUrl.includes('placeholder') || !supabaseUrl) {
+    if (!isSupabaseConfigured) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -179,9 +175,7 @@ export async function getAllWrestlersWithStats(): Promise<WrestlerStats[]> {
  */
 export async function getWrestlerMatches(wrestlerId: string): Promise<Match[]> {
   try {
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    if (supabaseUrl.includes('placeholder') || !supabaseUrl) {
+    if (!isSupabaseConfigured) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -223,9 +217,7 @@ export interface PerformanceDataPoint {
 
 export async function getPerformanceOverTime(wrestlerId?: string): Promise<PerformanceDataPoint[]> {
   try {
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    if (supabaseUrl.includes('placeholder') || !supabaseUrl) {
+    if (!isSupabaseConfigured) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -353,9 +345,7 @@ function extractTeamFromWrestlerName(wrestlerName: string): string {
  */
 export async function getAllTeamsWithStats(): Promise<TeamStats[]> {
   try {
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    if (supabaseUrl.includes('placeholder') || !supabaseUrl) {
+    if (!isSupabaseConfigured) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -477,9 +467,7 @@ export interface TournamentStats {
  */
 export async function getAllTournamentsWithStats(): Promise<TournamentStats[]> {
   try {
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    if (supabaseUrl.includes('placeholder') || !supabaseUrl) {
+    if (!isSupabaseConfigured) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -573,9 +561,7 @@ export interface TournamentDetails extends TournamentStats {
 
 export async function getTournamentDetails(tournamentId: string): Promise<TournamentDetails | null> {
   try {
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    if (supabaseUrl.includes('placeholder') || !supabaseUrl) {
+    if (!isSupabaseConfigured) {
       console.warn('Supabase not configured, returning null');
       return null;
     }
@@ -684,9 +670,7 @@ export async function getUniqueTeams(): Promise<string[]> {
  */
 export async function getUniqueWeightClasses(): Promise<number[]> {
   try {
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    if (supabaseUrl.includes('placeholder') || !supabaseUrl) {
+    if (!isSupabaseConfigured) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -720,9 +704,7 @@ export async function getUniqueWeightClasses(): Promise<number[]> {
  */
 export async function getUniqueTournaments(): Promise<Array<{id: string, name: string}>> {
   try {
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    if (supabaseUrl.includes('placeholder') || !supabaseUrl) {
+    if (!isSupabaseConfigured) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -746,9 +728,7 @@ export async function getUniqueTournaments(): Promise<Array<{id: string, name: s
 
 export async function getWinTypesData(wrestlerId?: string): Promise<WinTypeData[]> {
   try {
-    // Check if Supabase is configured
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    if (supabaseUrl.includes('placeholder') || !supabaseUrl) {
+    if (!isSupabaseConfigured) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
