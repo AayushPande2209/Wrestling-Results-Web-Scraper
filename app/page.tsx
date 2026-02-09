@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import ScraperControl from '../components/ScraperControl'
 import { PerformanceChart } from '../components/PerformanceChart'
 import { WinLossChart } from '../components/WinLossChart'
 import { getAllWrestlersWithStats, getPerformanceOverTime } from '../utils/analytics'
@@ -19,11 +18,6 @@ export default async function HomePage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Wrestling Analytics Dashboard</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-2">Ohio High School Wrestling Statistics</p>
-      </div>
-
-      {/* Scraper Control */}
-      <div className="mb-8">
-        <ScraperControl />
       </div>
 
       {/* Stats Cards */}
@@ -182,7 +176,7 @@ export default async function HomePage() {
             <div className="ml-3">
               <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">No Data Available</h3>
               <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                No wrestler data found. Use the "Run Scraper" button above to collect data from DubStat.
+                No wrestler data found. Run the scraper locally to collect data from DubStat.
               </p>
             </div>
           </div>
