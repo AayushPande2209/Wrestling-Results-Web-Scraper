@@ -3,7 +3,7 @@
  * Simple stats only: Wins, Losses, Win %, Match type breakdown
  */
 
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase } from './supabase';
 import type { Wrestler, Match, MatchType, Tournament } from '../types/database';
 
 // Simplified wrestler statistics for MVP
@@ -27,11 +27,6 @@ export interface WrestlerStats {
  */
 export async function calculateWrestlerStats(wrestlerId: string): Promise<WrestlerStats | null> {
   try {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured, returning null');
-      return null;
-    }
-
     // Get wrestler info
     const { data: wrestler, error: wrestlerError } = await supabase
       .from('wrestlers')
@@ -136,11 +131,6 @@ export async function calculateWrestlerStats(wrestlerId: string): Promise<Wrestl
  */
 export async function getAllWrestlersWithStats(): Promise<WrestlerStats[]> {
   try {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured, returning empty array');
-      return [];
-    }
-
     const { data: wrestlers, error } = await supabase
       .from('wrestlers')
       .select('id, name, weight_class')
@@ -175,11 +165,6 @@ export async function getAllWrestlersWithStats(): Promise<WrestlerStats[]> {
  */
 export async function getWrestlerMatches(wrestlerId: string): Promise<Match[]> {
   try {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured, returning empty array');
-      return [];
-    }
-
     const { data: matches, error } = await supabase
       .from('matches')
       .select(`
@@ -217,11 +202,6 @@ export interface PerformanceDataPoint {
 
 export async function getPerformanceOverTime(wrestlerId?: string): Promise<PerformanceDataPoint[]> {
   try {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured, returning empty array');
-      return [];
-    }
-
     let query = supabase
       .from('matches')
       .select(`
@@ -345,11 +325,6 @@ function extractTeamFromWrestlerName(wrestlerName: string): string {
  */
 export async function getAllTeamsWithStats(): Promise<TeamStats[]> {
   try {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured, returning empty array');
-      return [];
-    }
-
     // Get all wrestlers with their match data
     const wrestlers = await getAllWrestlersWithStats();
     
@@ -467,11 +442,6 @@ export interface TournamentStats {
  */
 export async function getAllTournamentsWithStats(): Promise<TournamentStats[]> {
   try {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured, returning empty array');
-      return [];
-    }
-
     // Get all tournaments
     const { data: tournaments, error: tournamentsError } = await supabase
       .from('tournaments')
@@ -561,11 +531,6 @@ export interface TournamentDetails extends TournamentStats {
 
 export async function getTournamentDetails(tournamentId: string): Promise<TournamentDetails | null> {
   try {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured, returning null');
-      return null;
-    }
-
     // Get tournament info
     const { data: tournament, error: tournamentError } = await supabase
       .from('tournaments')
@@ -670,11 +635,6 @@ export async function getUniqueTeams(): Promise<string[]> {
  */
 export async function getUniqueWeightClasses(): Promise<number[]> {
   try {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured, returning empty array');
-      return [];
-    }
-
     const { data: wrestlers, error } = await supabase
       .from('wrestlers')
       .select('weight_class')
@@ -704,11 +664,6 @@ export async function getUniqueWeightClasses(): Promise<number[]> {
  */
 export async function getUniqueTournaments(): Promise<Array<{id: string, name: string}>> {
   try {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured, returning empty array');
-      return [];
-    }
-
     const { data: tournaments, error } = await supabase
       .from('tournaments')
       .select('id, name')
@@ -728,11 +683,6 @@ export async function getUniqueTournaments(): Promise<Array<{id: string, name: s
 
 export async function getWinTypesData(wrestlerId?: string): Promise<WinTypeData[]> {
   try {
-    if (!isSupabaseConfigured()) {
-      console.warn('Supabase not configured, returning empty array');
-      return [];
-    }
-
     let query = supabase
       .from('matches')
       .select('match_type, winner_id, wrestler1_id, wrestler2_id')
