@@ -27,7 +27,7 @@ export interface WrestlerStats {
  */
 export async function calculateWrestlerStats(wrestlerId: string): Promise<WrestlerStats | null> {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured, returning null');
       return null;
     }
@@ -136,7 +136,7 @@ export async function calculateWrestlerStats(wrestlerId: string): Promise<Wrestl
  */
 export async function getAllWrestlersWithStats(): Promise<WrestlerStats[]> {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -175,7 +175,7 @@ export async function getAllWrestlersWithStats(): Promise<WrestlerStats[]> {
  */
 export async function getWrestlerMatches(wrestlerId: string): Promise<Match[]> {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -217,7 +217,7 @@ export interface PerformanceDataPoint {
 
 export async function getPerformanceOverTime(wrestlerId?: string): Promise<PerformanceDataPoint[]> {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -345,7 +345,7 @@ function extractTeamFromWrestlerName(wrestlerName: string): string {
  */
 export async function getAllTeamsWithStats(): Promise<TeamStats[]> {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -467,7 +467,7 @@ export interface TournamentStats {
  */
 export async function getAllTournamentsWithStats(): Promise<TournamentStats[]> {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -561,7 +561,7 @@ export interface TournamentDetails extends TournamentStats {
 
 export async function getTournamentDetails(tournamentId: string): Promise<TournamentDetails | null> {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured, returning null');
       return null;
     }
@@ -670,7 +670,7 @@ export async function getUniqueTeams(): Promise<string[]> {
  */
 export async function getUniqueWeightClasses(): Promise<number[]> {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -704,7 +704,7 @@ export async function getUniqueWeightClasses(): Promise<number[]> {
  */
 export async function getUniqueTournaments(): Promise<Array<{id: string, name: string}>> {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }
@@ -728,7 +728,7 @@ export async function getUniqueTournaments(): Promise<Array<{id: string, name: s
 
 export async function getWinTypesData(wrestlerId?: string): Promise<WinTypeData[]> {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured()) {
       console.warn('Supabase not configured, returning empty array');
       return [];
     }

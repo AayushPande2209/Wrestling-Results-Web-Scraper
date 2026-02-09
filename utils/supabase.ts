@@ -3,45 +3,74 @@
  * Updated to use modern Supabase client without deprecated packages
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+function getSupabaseUrl(): string {
+  return process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+}
 
-// Determine if Supabase is configured once at module load
-export const isSupabaseConfigured =
-  supabaseUrl.length > 0 &&
-  supabaseAnonKey.length > 0 &&
-  !supabaseUrl.includes('placeholder') &&
-  !supabaseAnonKey.includes('placeholder');
+function getSupabaseAnonKey(): string {
+  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+}
 
-// Create Supabase client – if not configured we still create a client with
-// dummy values so imports never crash, but every query will fail gracefully.
-export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key',
-  {
-    auth: {
-      persistSession: false, // Simplified for MVP - no user auth needed
-    },
-    realtime: {
-      params: {
-        eventsPerSecond: 10,
+// Lazy check – reads env vars at call time, not module-load time
+export function isSupabaseConfigured(): boolean {
+  const url = getSupabaseUrl();
+  const key = getSupabaseAnonKey();
+  const configured =
+    url.length > 0 &&
+    key.length > 0 &&
+    !url.includes('placeholder') &&
+    !key.includes('placeholder');
+
+  console.log('[v0] isSupabaseConfigured check:', {
+    urlSet: url.length > 0,
+    keySet: key.length > 0,
+    urlStart: url.substring(0, 30),
+    configured,
+  });
+
+  return configured;
+}
+
+// Lazy singleton – client is created on first use with the real env vars
+let _supabase: SupabaseClient | null = null;
+
+export function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    const url = getSupabaseUrl() || 'https://placeholder.supabase.co';
+    const key = getSupabaseAnonKey() || 'placeholder-key';
+
+    _supabase = createClient(url, key, {
+      auth: {
+        persistSession: false,
       },
-    },
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
+      },
+    });
+  }
+  return _supabase;
+}
+
+// Keep a default export for backwards-compat with existing code
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getSupabase(), prop, receiver);
   },
-);
+});
 
 // Helper function to check if Supabase is properly configured
 export const checkSupabaseConnection = async (): Promise<boolean> => {
   try {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured()) {
       console.log('Supabase not configured – missing or placeholder env vars');
       return false;
     }
 
-    // Simple connection test
-    const { error } = await supabase.from('wrestlers').select('count').limit(1);
+    const { error } = await getSupabase().from('wrestlers').select('count').limit(1);
 
     if (error) {
       console.error('Supabase connection error:', error);
