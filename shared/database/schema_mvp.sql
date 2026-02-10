@@ -34,6 +34,7 @@ CREATE TABLE matches (
     wrestler2_score INTEGER DEFAULT 0,
     match_type VARCHAR(50) DEFAULT 'decision',
     round VARCHAR(50),
+    match_time VARCHAR(10),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
     -- Essential constraints only

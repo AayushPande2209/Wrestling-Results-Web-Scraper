@@ -36,9 +36,13 @@ function getMatchResult(match: Match, wrestlerId: string): { result: string; sco
   const isWinner = match.winner_id === wrestlerId
   
   const result = isWinner ? 'W' : 'L'
-  const score = isWrestler1 
-    ? `${match.wrestler1_score}-${match.wrestler2_score}`
-    : `${match.wrestler2_score}-${match.wrestler1_score}`
+  
+  // For pin matches, show only the pin time; for other matches, show scores
+  const score = match.match_type === 'pin' && match.match_time
+    ? match.match_time
+    : isWrestler1 
+      ? `${match.wrestler1_score}-${match.wrestler2_score}`
+      : `${match.wrestler2_score}-${match.wrestler1_score}`
     
   return { result, score }
 }

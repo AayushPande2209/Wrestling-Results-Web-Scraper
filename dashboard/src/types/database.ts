@@ -27,6 +27,7 @@ export interface Match {
   wrestler2_score: number;
   match_type: MatchType;
   round: string | null;
+  match_time: string | null;
   created_at: string;
   
   // Relationships (populated by joins)
