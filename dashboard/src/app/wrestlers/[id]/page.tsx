@@ -36,6 +36,13 @@ function getMatchResult(match: Match, wrestlerId: string): { result: string; sco
   const isWinner = match.winner_id === wrestlerId
   
   const result = isWinner ? 'W' : 'L'
+  
+  // For pins, show the time instead of 0-0 score
+  if (match.match_type === 'pin' && match.match_time) {
+    return { result, score: match.match_time }
+  }
+  
+  // For other match types, show the score
   const score = isWrestler1 
     ? `${match.wrestler1_score}-${match.wrestler2_score}`
     : `${match.wrestler2_score}-${match.wrestler1_score}`

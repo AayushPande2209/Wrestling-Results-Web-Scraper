@@ -52,11 +52,15 @@ class PlaywrightScraper:
                 # Load the database page
                 self._load_page(page)
                 
-                # Get available genders
+                # Get available genders - but only process Boys
                 genders = self._get_genders(page)
                 logger.info(f"Found {len(genders)} genders: {genders}")
                 
-                for gender in genders:
+                # Filter to only Boys (not Girls)
+                genders_to_process = [g for g in genders if g.lower() == 'boys']
+                logger.info(f"Processing only: {genders_to_process}")
+                
+                for gender in genders_to_process:
                     logger.info(f"🚹 Processing gender: {gender}")
                     
                     # Select gender
@@ -173,23 +177,28 @@ class PlaywrightScraper:
     def _select_gender(self, page: Page, gender: str) -> None:
         """Select a gender option."""
         try:
-            gender_selectors = [
-                'select[name*="gender"]',
-                'select[id*="gender"]',
-                '#gender',
-                '.gender-select'
-            ]
+            # Use the specific ID we found
+            selector = '#gender'
             
-            for selector in gender_selectors:
-                try:
-                    element = page.query_selector(selector)
-                    if element:
-                        page.select_option(selector, gender)
-                        page.wait_for_timeout(1000)  # Wait for page to update
-                        logger.debug(f"Selected gender: {gender}")
-                        return
-                except:
-                    continue
+            try:
+                element = page.query_selector(selector)
+                if element:
+                    page.select_option(selector, gender)
+                    logger.debug(f"Selected gender: {gender}")
+                    
+                    # Wait for school dropdown to populate (important!)
+                    # The school dropdown gets populated via JavaScript after gender selection
+                    page.wait_for_timeout(3000)  # Wait 3 seconds for AJAX to complete
+                    
+                    # Wait for school dropdown to have options
+                    page.wait_for_function('''
+                        document.querySelector('#school').options.length > 1
+                    ''', timeout=10000)
+                    
+                    logger.debug(f"School dropdown populated after selecting {gender}")
+                    return
+            except Exception as e:
+                logger.error(f"Error selecting gender with selector {selector}: {e}")
                     
             logger.warning(f"Could not select gender: {gender}")
             
@@ -199,39 +208,31 @@ class PlaywrightScraper:
     def _get_schools(self, page: Page) -> List[str]:
         """Get available school options for current gender."""
         try:
-            # Look for school dropdown
-            school_selectors = [
-                'select[name*="school"]',
-                'select[id*="school"]',
-                '#school',
-                '.school-select',
-                'select:has(option[value*="high"])',
-                'select:has(option[value*="school"])'
-            ]
+            # Use the specific ID we found
+            selector = '#school'
             
-            for selector in school_selectors:
-                try:
-                    element = page.wait_for_selector(selector, timeout=5000)
-                    if element:
-                        # Get all option values, excluding empty ones
-                        options = page.evaluate(f'''
-                            Array.from(document.querySelector("{selector}").options)
-                                .map(option => option.value)
-                                .filter(value => value && value !== "" && value !== "0")
-                        ''')
-                        if options:
-                            logger.debug(f"Found {len(options)} schools")
-                            # Filter to only include Olentangy Liberty
-                            liberty_schools = [school for school in options if 'olentangy liberty' in school.lower()]
-                            if liberty_schools:
-                                logger.info(f"Found Olentangy Liberty school(s): {liberty_schools}")
-                                return liberty_schools
-                            else:
-                                logger.warning("Olentangy Liberty not found in school list")
-                                logger.debug(f"Available schools: {options[:10]}...")  # Show first 10 for debugging
-                                return []
-                except:
-                    continue
+            try:
+                element = page.wait_for_selector(selector, timeout=5000)
+                if element:
+                    # Get all option values, excluding empty ones
+                    options = page.evaluate(f'''
+                        Array.from(document.querySelector("{selector}").options)
+                            .map(option => option.value)
+                            .filter(value => value && value !== "" && value !== "0")
+                    ''')
+                    if options:
+                        logger.debug(f"Found {len(options)} schools")
+                        # Filter to only include Olentangy Liberty
+                        liberty_schools = [school for school in options if 'olentangy liberty' in school.lower()]
+                        if liberty_schools:
+                            logger.info(f"Found Olentangy Liberty school(s): {liberty_schools}")
+                            return liberty_schools
+                        else:
+                            logger.warning("Olentangy Liberty not found in school list")
+                            logger.debug(f"Available schools: {options[:10]}...")  # Show first 10 for debugging
+                            return []
+            except Exception as e:
+                logger.error(f"Error getting schools with selector {selector}: {e}")
             
             logger.warning("Could not find school dropdown")
             return []
@@ -243,23 +244,27 @@ class PlaywrightScraper:
     def _select_school(self, page: Page, school: str) -> None:
         """Select a school option."""
         try:
-            school_selectors = [
-                'select[name*="school"]',
-                'select[id*="school"]',
-                '#school',
-                '.school-select'
-            ]
+            # Use the specific ID we found
+            selector = '#school'
             
-            for selector in school_selectors:
-                try:
-                    element = page.query_selector(selector)
-                    if element:
-                        page.select_option(selector, school)
-                        page.wait_for_timeout(2000)  # Wait for wrestler dropdown to populate
-                        logger.debug(f"Selected school: {school}")
-                        return
-                except:
-                    continue
+            try:
+                element = page.query_selector(selector)
+                if element:
+                    page.select_option(selector, school)
+                    logger.debug(f"Selected school: {school}")
+                    
+                    # Wait for wrestler dropdown to populate (important!)
+                    page.wait_for_timeout(3000)  # Wait 3 seconds for AJAX
+                    
+                    # Wait for wrestler dropdown to have options
+                    page.wait_for_function('''
+                        document.querySelector('#wrestler').options.length > 1
+                    ''', timeout=10000)
+                    
+                    logger.debug(f"Wrestler dropdown populated after selecting {school}")
+                    return
+            except Exception as e:
+                logger.error(f"Error selecting school with selector {selector}: {e}")
                     
             logger.warning(f"Could not select school: {school}")
             
@@ -269,31 +274,23 @@ class PlaywrightScraper:
     def _get_wrestlers(self, page: Page) -> List[str]:
         """Get available wrestler options for current school."""
         try:
-            # Look for wrestler dropdown
-            wrestler_selectors = [
-                'select[name*="wrestler"]',
-                'select[id*="wrestler"]',
-                '#wrestler',
-                '.wrestler-select',
-                'select[name*="athlete"]',
-                'select[id*="athlete"]'
-            ]
+            # Use the specific ID we found
+            selector = '#wrestler'
             
-            for selector in wrestler_selectors:
-                try:
-                    element = page.wait_for_selector(selector, timeout=5000)
-                    if element:
-                        # Get all option values, excluding empty ones
-                        options = page.evaluate(f'''
-                            Array.from(document.querySelector("{selector}").options)
-                                .map(option => option.value)
-                                .filter(value => value && value !== "" && value !== "0")
-                        ''')
-                        if options:
-                            logger.debug(f"Found {len(options)} wrestlers")
-                            return options
-                except:
-                    continue
+            try:
+                element = page.wait_for_selector(selector, timeout=5000)
+                if element:
+                    # Get all option values, excluding empty ones
+                    options = page.evaluate(f'''
+                        Array.from(document.querySelector("{selector}").options)
+                            .map(option => option.value)
+                            .filter(value => value && value !== "" && value !== "0")
+                    ''')
+                    if options:
+                        logger.debug(f"Found {len(options)} wrestlers")
+                        return options
+            except Exception as e:
+                logger.error(f"Error getting wrestlers with selector {selector}: {e}")
             
             logger.warning("Could not find wrestler dropdown")
             return []
@@ -305,93 +302,47 @@ class PlaywrightScraper:
     def _scrape_wrestler_results(self, page: Page, wrestler: str, school: str) -> List[MatchData]:
         """Scrape results for a specific wrestler."""
         try:
-            # Select wrestler
-            wrestler_selectors = [
-                'select[name*="wrestler"]',
-                'select[id*="wrestler"]',
-                '#wrestler',
-                '.wrestler-select',
-                'select[name*="athlete"]',
-                'select[id*="athlete"]'
-            ]
+            # Select wrestler using the specific ID
+            selector = '#wrestler'
             
-            wrestler_selected = False
-            for selector in wrestler_selectors:
-                try:
-                    element = page.query_selector(selector)
-                    if element:
-                        page.select_option(selector, wrestler)
-                        page.wait_for_timeout(1000)
-                        wrestler_selected = True
-                        logger.debug(f"Selected wrestler {wrestler} using selector {selector}")
-                        break
-                except Exception as e:
-                    logger.debug(f"Failed to select wrestler with selector {selector}: {e}")
-                    continue
-            
-            if not wrestler_selected:
-                logger.warning(f"Could not select wrestler {wrestler}")
+            try:
+                element = page.query_selector(selector)
+                if element:
+                    page.select_option(selector, wrestler)
+                    page.wait_for_timeout(1000)
+                    logger.debug(f"Selected wrestler {wrestler}")
+                else:
+                    logger.warning(f"Could not find wrestler dropdown")
+                    return []
+            except Exception as e:
+                logger.error(f"Failed to select wrestler: {e}")
                 return []
             
-            # Click "Get Results" button with improved selectors and debugging
-            result_button_selectors = [
-                '#get-results',  # Most specific - the ID we found in debug
-                'button:text("Get Results")',  # Playwright text selector
-                'button >> text="Get Results"',  # Alternative text selector
-                'button:has-text("Get Results")',
-                'input[type="submit"][value*="Results"]',
-                'input[type="submit"][value*="Get Results"]',
-                'input[value*="Get Results"]',
-                'button[value*="Get Results"]',
-                '.get-results',
-                'input[type="submit"]',  # Generic submit button
-                'button[type="submit"]'  # Generic submit button
-            ]
+            # Click "Get Results" button using the specific ID
+            button_selector = '#get-results'
             
-            button_clicked = False
-            for selector in result_button_selectors:
-                try:
-                    element = page.query_selector(selector)
-                    if element:
-                        # Check if button is visible and enabled
-                        is_visible = page.is_visible(selector)
-                        is_enabled = page.is_enabled(selector)
-                        
-                        logger.debug(f"Found button with selector {selector}: visible={is_visible}, enabled={is_enabled}")
-                        
-                        if is_visible and is_enabled:
-                            logger.debug(f"Clicking Get Results button with selector: {selector}")
-                            page.click(selector)
-                            page.wait_for_load_state('domcontentloaded')
-                            time.sleep(3)  # Wait for results to load
-                            button_clicked = True
-                            logger.debug(f"Successfully clicked button with selector: {selector}")
-                            break
-                        else:
-                            logger.debug(f"Button found but not clickable: visible={is_visible}, enabled={is_enabled}")
-                except Exception as e:
-                    logger.debug(f"Failed to click button with selector {selector}: {e}")
-                    continue
-            
-            if not button_clicked:
-                logger.warning(f"Could not find or click Get Results button for {wrestler}")
-                # Try to get all buttons on the page for debugging
-                try:
-                    buttons = page.evaluate('''
-                        Array.from(document.querySelectorAll('input[type="submit"], button')).map(btn => ({
-                            tag: btn.tagName,
-                            type: btn.type,
-                            value: btn.value,
-                            text: btn.textContent,
-                            id: btn.id,
-                            class: btn.className,
-                            visible: btn.offsetParent !== null,
-                            enabled: !btn.disabled
-                        }))
-                    ''')
-                    logger.debug(f"Available buttons: {buttons}")
-                except:
-                    pass
+            try:
+                element = page.query_selector(button_selector)
+                if element:
+                    is_visible = page.is_visible(button_selector)
+                    is_enabled = page.is_enabled(button_selector)
+                    
+                    logger.debug(f"Get Results button: visible={is_visible}, enabled={is_enabled}")
+                    
+                    if is_visible and is_enabled:
+                        logger.debug(f"Clicking Get Results button")
+                        page.click(button_selector)
+                        page.wait_for_load_state('domcontentloaded')
+                        time.sleep(3)  # Wait for results to load
+                        logger.debug(f"Successfully clicked Get Results button")
+                    else:
+                        logger.warning(f"Get Results button not clickable: visible={is_visible}, enabled={is_enabled}")
+                        return []
+                else:
+                    logger.warning(f"Could not find Get Results button")
+                    return []
+            except Exception as e:
+                logger.error(f"Failed to click Get Results button: {e}")
                 return []
             
             # Get the results table HTML

@@ -311,7 +311,10 @@ export default function TournamentDetailPage() {
                     </div>
                   </td>
                   <td className="px-4 py-2 text-sm text-gray-900">
-                    {match.wrestler1_score} - {match.wrestler2_score}
+                    {match.match_type === 'pin' && match.match_time 
+                      ? match.match_time 
+                      : `${match.wrestler1_score} - ${match.wrestler2_score}`
+                    }
                   </td>
                   <td className="px-4 py-2">
                     <div className="text-sm font-medium text-green-600">

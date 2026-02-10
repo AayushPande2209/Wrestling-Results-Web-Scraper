@@ -69,11 +69,13 @@ class SupabaseClient:
             
             # Validate all matches first
             valid_matches = []
+            skipped_invalid = 0
             for match in matches:
                 if self.validator.validate_match_data(match):
                     valid_matches.append(self.validator.clean_match_data(match))
                 else:
                     logger.warning(f"Skipping invalid match: {match}")
+                    skipped_invalid += 1
             
             if not valid_matches:
                 logger.warning("No valid matches to insert after validation")
@@ -82,22 +84,26 @@ class SupabaseClient:
             # Process matches in smaller batches to avoid timeouts
             batch_size = 50
             total_inserted = 0
+            total_updated = 0
+            total_skipped = 0
             
             for i in range(0, len(valid_matches), batch_size):
                 batch = valid_matches[i:i + batch_size]
-                inserted_count = self._insert_match_batch(batch)
-                total_inserted += inserted_count
-                logger.info(f"Inserted batch {i//batch_size + 1}: {inserted_count} matches")
+                inserted, updated, skipped = self._insert_match_batch(batch)
+                total_inserted += inserted
+                total_updated += updated
+                total_skipped += skipped
+                logger.info(f"Batch {i//batch_size + 1}: {inserted} inserted, {updated} updated, {skipped} skipped")
             
-            logger.info(f"Successfully inserted {total_inserted} out of {len(matches)} matches")
-            return total_inserted > 0
+            logger.info(f"Summary: {total_inserted} inserted, {total_updated} updated, {total_skipped} skipped, {skipped_invalid} invalid (out of {len(matches)} total)")
+            return (total_inserted + total_updated) > 0
             
         except Exception as e:
             logger.error(f"Failed to batch insert matches: {e}")
             return False
     
     def _insert_match_batch(self, matches: List[MatchData]) -> int:
-        """Insert a single batch of matches."""
+        """Insert a single batch of matches, or update existing matches with 0-0 scores."""
         inserted_count = 0
         
         for match in matches:
@@ -107,12 +113,30 @@ class SupabaseClient:
                 wrestler2_id = self._ensure_wrestler_exists(match.wrestler2)
                 tournament_id = self._ensure_tournament_exists(match)
                 
-                # Check for duplicate match (same tournament, round, wrestler pair)
-                if self._is_duplicate_match(match, wrestler1_id, wrestler2_id, tournament_id):
-                    logger.info(f"Skipping duplicate match: {match.wrestler1.name} vs {match.wrestler2.name} ({match.tournament_name}, {match.round})")
+                # Check for existing match
+                existing_match = self._find_existing_match(match, wrestler1_id, wrestler2_id, tournament_id)
+                
+                if existing_match:
+                    # Match exists - check if we should update it
+                    if existing_match['wrestler1_score'] == 0 and existing_match['wrestler2_score'] == 0:
+                        # Update the match with new scores
+                        if self._update_match_scores(
+                            existing_match['id'],
+                            match.wrestler1_score,
+                            match.wrestler2_score,
+                            match.match_type.value,
+                            match.match_time
+                        ):
+                            logger.info(f"Updated match scores: {match.wrestler1.name} vs {match.wrestler2.name} ({match.tournament_name}, {match.round})")
+                            inserted_count += 1
+                        else:
+                            logger.warning(f"Failed to update match: {match.wrestler1.name} vs {match.wrestler2.name}")
+                    else:
+                        # Match already has scores, skip it
+                        logger.debug(f"Skipping match (already has scores): {match.wrestler1.name} vs {match.wrestler2.name} ({match.tournament_name}, {match.round})")
                     continue
                 
-                # Insert match
+                # Match doesn't exist - insert it
                 match_data = {
                     'id': str(uuid.uuid4()),
                     'tournament_id': tournament_id,
@@ -215,9 +239,14 @@ class SupabaseClient:
 
     def _is_duplicate_match(self, match: MatchData, wrestler1_id: str, wrestler2_id: str, tournament_id: str) -> bool:
         """Check if match already exists in database."""
+        existing = self._find_existing_match(match, wrestler1_id, wrestler2_id, tournament_id)
+        return existing is not None
+    
+    def _find_existing_match(self, match: MatchData, wrestler1_id: str, wrestler2_id: str, tournament_id: str) -> Optional[Dict[str, Any]]:
+        """Find an existing match in the database. Returns the match data if found, None otherwise."""
         try:
             # Check for exact match (same wrestlers, tournament, round)
-            result = self.client.table('matches').select('id').match({
+            result = self.client.table('matches').select('*').match({
                 'tournament_id': tournament_id,
                 'wrestler1_id': wrestler1_id,
                 'wrestler2_id': wrestler2_id,
@@ -225,20 +254,50 @@ class SupabaseClient:
             }).execute()
             
             if result.data:
-                return True
+                return result.data[0]
             
             # Check for reverse match (wrestlers swapped)
-            result = self.client.table('matches').select('id').match({
+            result = self.client.table('matches').select('*').match({
                 'tournament_id': tournament_id,
                 'wrestler1_id': wrestler2_id,
                 'wrestler2_id': wrestler1_id,
                 'round': match.round
             }).execute()
             
-            return bool(result.data)
+            if result.data:
+                return result.data[0]
+            
+            return None
             
         except Exception as e:
-            logger.error(f"Failed to check for duplicate match: {e}")
+            logger.error(f"Failed to find existing match: {e}")
+            return None
+    
+    def _update_match_scores(self, match_id: str, wrestler1_score: int, wrestler2_score: int, 
+                            match_type: str, match_time: Optional[str] = None) -> bool:
+        """Update match scores and match type for an existing match."""
+        try:
+            update_data = {
+                'wrestler1_score': wrestler1_score,
+                'wrestler2_score': wrestler2_score,
+                'match_type': match_type
+            }
+            
+            # Only update match_time if it's provided
+            if match_time:
+                update_data['match_time'] = match_time
+            
+            result = self.client.table('matches').update(update_data).eq('id', match_id).execute()
+            
+            if result.data:
+                logger.debug(f"Updated match {match_id} with scores {wrestler1_score}-{wrestler2_score}")
+                return True
+            else:
+                logger.warning(f"No data returned when updating match {match_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to update match scores for {match_id}: {e}")
             return False
     
     def _get_winner_id(self, match: MatchData, wrestler1_id: str, wrestler2_id: str) -> Optional[str]:
